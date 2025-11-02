@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard — Feelancer10</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* small dashboard-specific tweaks on top of style.css */
+    .stats { display:flex; gap:12px; margin-bottom:12px; }
+    .stat { flex:1; padding:12px; border-radius:10px; background: rgba(255,255,255,0.035); text-align:center; }
+    .stat h3 { margin:0; font-size:18px; color:var(--accent); }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    .card-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+    .small-muted { color:rgba(7,32,51,0.6); font-size:13px; }
+  </style>
+</head>
+<body>
+  <header class="topbar container">
+    <a class="logo" href="index.html">Feelancer10</a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="find-work.html">Find Work</a>
+      <a href="post-job.html">Post Job</a>
+      <a href="chat.html">Messages</a>
+      <a href="profile.html">Profile</a>
+      <a href="wallet.html">Wallet</a>
+      <a href="support.html">Support</a>
+      <a id="logout" href="#">Logout</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section id="profileCard" class="card">Loading profile...</section>
+    <section class="card">
+      <div class="stats" id="statsRow">
+        <!-- stats filled by JS -->
+      </div>
+
+      <div class="actions">
+        <a class="btn" href="post-job.html">Post Job</a>
+        <a class="btn ghost" href="find-work.html">Find Work</a>
+        <a class="btn" href="chat.html">Messages</a>
+        <a class="btn ghost" href="profile.html">Edit Profile</a>
+        <a class="btn" href="wallet.html">Wallet</a>
+      </div>
+
+      <div id="roleArea">Loading...</div>
+    </section>
+  </main>
+
+  <footer class="container muted center">© Feelancer10</footer>
+
+  <script type="module">
+    // ================== FIREBASE INIT ==================
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+    import {
+      getFirestore, doc, getDoc, setDoc, collection, query, where,
+      getDocs, orderBy, addDoc, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDTAI93GPDjSYaUTNuRDRD_EaI5KgAKga4",
+      authDomain: "feelancer10.firebaseapp.com",
+      projectId: "feelancer10",
+      storageBucket: "feelancer10.firebasestorage.app",
+      messagingSenderId: "493511381411",
+      appId: "1:493511381411:web:c095b15d707a758ba08a16"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Utility
+    const $ = id => document.getElementById(id);
+    function escapeHtml(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // Logout
+    document.getElementById('logout').onclick = (e) => { e.preventDefault(); signOut(auth).then(()=> location.href='index.html'); };
+
+    // Ensure collections are auto-created by writing seed data if missing
+    async function seedDefaults(uid){
+      try {
+        // Create a categories docset if not exists (optional)
+        const catCol = collection(db, 'categories');
+        // We don't force seed here to avoid duplication; frontend lists will handle missing gracefully
+      } catch(e){
+        console.warn('seed error', e);
+      }
+    }
+
+    // Main auth watcher
+    onAuthStateChanged(auth, async user => {
+      if (!user) return location.href = 'auth.html';
+      // Ensure user doc exists
+      const uDocRef = doc(db, 'users', user.uid);
+      const uSnap = await getDoc(uDocRef);
+      if (!uSnap.exists()){
+        await setDoc(uDocRef, {
+          name: user.displayName || 'New User',
+          email: user.email || '',
+          role: 'client',
+          walletBalance: 0,
+          profileCompleted: false,
+          joinedAt: serverTimestamp()
+        });
+      }
+      const uData = (await getDoc(uDocRef)).data();
+      renderProfileCard(uData);
+      await seedDefaults(user.uid);
+      renderRoleArea(user.uid, uData.role || 'client');
+      await loadStats(user.uid, uData.role || 'client');
+    });
+
+    // Render profile card
+    function renderProfileCard(u){
+      $('profileCard').innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div>
+            <h2>${escapeHtml(u.name||'User')}</h2>
+            <div class="small-muted">${escapeHtml(u.email||'')}</div>
+            <div class="small-muted">Role: <strong>${escapeHtml(u.role||'client')}</strong></div>
+            <div style="margin-top:8px">Wallet: <strong>₹${u.walletBalance||0}</strong></div>
+          </div>
+          <div style="text-align:right">
+            <a class="btn" href="profile.html">Edit Profile</a>
+            <a class="btn ghost" href="chat.html">Messages</a>
+          </div>
+        </div>
+      `;
+    }
+
+    // Load some quick stats (counts)
+    async function loadStats(uid, role){
+      const statsEl = $('statsRow');
+      statsEl.innerHTML = '<div class="stat"><h3>—</h3><div class="small-muted">Loading...</div></div>';
+      // jobs posted by user
+      const jobsQ = query(collection(db,'jobs'), where('postedBy','==', uid));
+      const jobsSnap = await getDocs(jobsQ);
+      // gigs (if you create gigs collection later)
+      const gigsQ = query(collection(db,'gigs'), where('ownerId','==', uid));
+      const gigsSnap = await getDocs(gigsQ);
+      // orders
+      const ordersQ = query(collection(db,'orders'), where('clientId','==', uid));
+      const ordersSnap = await getDocs(ordersQ);
+
+      statsEl.innerHTML = `
+        <div class="stat">
+          <h3>${jobsSnap.size}</h3>
+          <div class="small-muted">Jobs Posted</div>
+        </div>
+        <div class="stat">
+          <h3>${gigsSnap.size}</h3>
+          <div class="small-muted">Your Gigs</div>
+        </div>
+        <div class="stat">
+          <h3>${ordersSnap.size}</h3>
+          <div class="small-muted">Your Orders</div>
+        </div>
+      `;
+    }
+
+    // Render role-specific area
+    async function renderRoleArea(uid, role){
+      const area = $('roleArea');
+      if (role === 'freelancer'){
+        area.innerHTML = '<h3>Your assigned jobs & gigs</h3><div id="listFreelancer" class="card-list"></div>';
+        await loadFreelancerItems(uid);
+      } else if (role === 'client'){
+        area.innerHTML = '<h3>Your posted jobs</h3><div id="listClient" class="card-list"></div>';
+        await loadClientJobs(uid);
+      } else { // both
+        area.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="card"><h3>Your gigs</h3><div id="listFreelancer" class="card-list"></div></div><div class="card"><h3>Your jobs</h3><div id="listClient" class="card-list"></div></div></div>';
+        await loadFreelancerItems(uid); await loadClientJobs(uid);
+      }
+    }
+
+    // Load client jobs (posted by user)
+    async function loadClientJobs(uid){
+      const el = document.getElementById('listClient');
+      if(!el) return;
+      el.innerHTML = '';
+      const q = query(collection(db,'jobs'), where('postedBy','==', uid), orderBy('createdAt','desc'));
+      const snap = await getDocs(q);
+      if (snap.empty) el.innerHTML = '<div class="muted small">No jobs posted yet</div>';
+      snap.forEach(d => {
+        const j = d.data();
+        el.innerHTML += `
+          <div class="mini-gig card">
+            <strong>${escapeHtml(j.title)}</strong>
+            <div class="small-muted">₹${j.budget} • ${escapeHtml(j.status||'open')}</div>
+            <p class="small">${escapeHtml((j.description||'').slice(0,140))}</p>
+            <div class="row" style="margin-top:8px">
+              <a class="btn" href="chat.html?to=${encodeURIComponent(j.postedBy)}">Message</a>
+              <a class="btn ghost" href="find-work.html">View Applicants</a>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // Load freelancer items (gigs or assigned tasks)
+    async function loadFreelancerItems(uid){
+      const el = document.getElementById('listFreelancer');
+      if(!el) return;
+      el.innerHTML = '';
+      // gigs owned by this freelancer
+      const gq = query(collection(db,'gigs'), where('ownerId','==', uid), orderBy('createdAt','desc'));
+      const gsnap = await getDocs(gq);
+      if (gsnap.empty) el.innerHTML = '<div class="muted small">No gigs yet — create a gig in profile.</div>';
+      gsnap.forEach(g => {
+        const gg = g.data();
+        el.innerHTML += `
+          <div class="mini-gig card">
+            <strong>${escapeHtml(gg.title)}</strong>
+            <div class="small-muted">₹${gg.price} • ${escapeHtml(gg.category||'')}</div>
+            <p class="small">${escapeHtml((gg.description||'').slice(0,120))}</p>
+            <div class="row" style="margin-top:8px">
+              <a class="btn" href="gig-detail.html?id=${g.id}">Open</a>
+              <a class="btn ghost" href="chat.html">Messages</a>
+            </div>
+          </div>`;
+      });
+
+      // also show assigned orders if any
+      const oq = query(collection(db,'orders'), where('freelancerId','==', uid), orderBy('createdAt','desc'));
+      const osnap = await getDocs(oq);
+      if (!osnap.empty) {
+        el.innerHTML += `<div style="grid-column:1/-1"><h4>Assigned orders</h4></div>`;
+        osnap.forEach(o => {
+          const od = o.data();
+          el.innerHTML += `<div class="mini-gig card"><strong>Order ${o.id}</strong><div class="small-muted">₹${od.amount} • ${escapeHtml(od.status||'')}</div><div class="row" style="margin-top:8px"><a class="btn" href="chat.html">Chat about order</a></div></div>`;
+        });
+      }
+    }
+
+    // Developer note: the code above reads from collections: users, jobs, gigs, orders.
+    // These collections are auto-created when documents are added (via signup/posting/creating gigs).
+    // If you want to seed default categories, you can add them here using addDoc(collection(db,'categories'), { name: 'Web Development', createdAt: serverTimestamp() })
+
+    // Example: auto-seed categories once (uncomment if needed)
+    /*
+    (async () => {
+      const cats = ['Web Development','Graphic Design','Content Writing','Digital Marketing','Mobile Apps'];
+      for(const c of cats){
+        await addDoc(collection(db,'categories'), { name:c, createdAt: serverTimestamp() });
+      }
+    })();
+    */
+  </script>
+</body>
+</html>
