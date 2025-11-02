@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Auth — Feelancer10</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --blue:#0077FF; --accent:#00E0FF; --bg:linear-gradient(135deg,#0077FF 0%, #00E0FF 100%);
+      --card: rgba(255,255,255,0.08); --glass: rgba(255,255,255,0.06); --muted: rgba(255,255,255,0.85);
+      --radius:16px; --maxw:1100px;
+    }
+    *{box-sizing:border-box;font-family:'Poppins',sans-serif}
+    body{
+      margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+      background:var(--bg); color:white;
+      -webkit-font-smoothing:antialiased;
+    }
+    .wrap{width:100%;max-width:1100px;padding:28px}
+    .card{
+      backdrop-filter: blur(12px);
+      background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border-radius:var(--radius); padding:22px; box-shadow:0 12px 40px rgba(2,8,23,0.25);
+    }
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+    .logo{font-weight:700;font-size:20px;color:white;text-decoration:none}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    @media(max-width:880px){ .grid{grid-template-columns:1fr} }
+    h2{margin:0 0 8px 0}
+    p.muted{color:rgba(255,255,255,0.9);margin:0 0 12px 0}
+    .input{display:block;width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:white;margin-bottom:10px}
+    .select{appearance:none}
+    .btn{display:inline-block;padding:12px 18px;border-radius:40px;background:white;color:var(--blue);font-weight:700;border:0;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.12);color:white}
+    .small{font-size:13px;color:rgba(255,255,255,0.9)}
+    .mutedSmall{color:rgba(255,255,255,0.7);font-size:13px;margin-top:8px}
+    .center{text-align:center}
+    .foot{margin-top:14px;color:rgba(255,255,255,0.7);font-size:13px;text-align:center}
+    .role-row{display:flex;gap:8px;align-items:center}
+    .role-row label{font-size:14px;color:rgba(255,255,255,0.95)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <header>
+        <a class="logo" href="index.html">Feelancer10</a>
+        <nav>
+          <a class="btn ghost" href="index.html" style="text-decoration:none">Home</a>
+        </nav>
+      </header>
+
+      <div class="grid">
+        <!-- SIGN UP -->
+        <div>
+          <h2>Create account</h2>
+          <p class="muted">Sign up as <strong>Client</strong>, <strong>Freelancer</strong>, or <strong>Both</strong>. Your account document will be created automatically.</p>
+
+          <input id="su_name" class="input" placeholder="Full name" />
+          <input id="su_email" class="input" placeholder="Email address" />
+          <input id="su_pass" class="input" type="password" placeholder="Password (min 6)" />
+
+          <div class="role-row" style="margin-bottom:10px">
+            <label for="su_role">Role:</label>
+            <select id="su_role" class="input select" style="width:240px;margin-left:10px">
+              <option value="client">Client</option>
+              <option value="freelancer">Freelancer</option>
+              <option value="both">Both</option>
+            </select>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:center">
+            <button id="btnSignup" class="btn">Create account</button>
+            <button id="btnDemo" class="btn ghost">Demo quick sign</button>
+          </div>
+
+          <p class="mutedSmall">By creating an account you agree to Feelancer rules. Do not share direct payment or contact info in chat — it will be blocked.</p>
+        </div>
+
+        <!-- LOGIN -->
+        <div>
+          <h2>Login</h2>
+          <p class="muted">Login with email & password. After login you will be redirected to your dashboard.</p>
+
+          <input id="li_email" class="input" placeholder="Email address" />
+          <input id="li_pass" class="input" type="password" placeholder="Password" />
+          <div style="display:flex;gap:10px;align-items:center">
+            <button id="btnLogin" class="btn">Login</button>
+            <button id="btnForgot" class="btn ghost">Forgot?</button>
+          </div>
+
+          <p class="mutedSmall">First time? Use the Create account form to register and automatically create your profile document in Firebase.</p>
+        </div>
+      </div>
+
+      <div class="foot">Need help? Open <a href="support.html" style="color:white;text-decoration:underline">Support</a> or contact admin (admin@feelancer10 placeholder).</div>
+    </div>
+  </div>
+
+  <!-- ===== FIREBASE & LOGIC (INLINE) ===== -->
+  <script type="module">
+    // ---------- Import Firebase (modular) ----------
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+    // ---------- Firebase config (your project) ----------
+    const firebaseConfig = {
+      apiKey: "AIzaSyDTAI93GPDjSYaUTNuRDRD_EaI5KgAKga4",
+      authDomain: "feelancer10.firebaseapp.com",
+      projectId: "feelancer10",
+      storageBucket: "feelancer10.firebasestorage.app",
+      messagingSenderId: "493511381411",
+      appId: "1:493511381411:web:c095b15d707a758ba08a16"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // ---------- Utilities ----------
+    function $(id){ return document.getElementById(id); }
+    function showAlert(msg){ alert(msg); }
+
+    // ---------- Signup flow ----------
+    $('btnSignup').addEventListener('click', async () => {
+      const name = $('su_name').value.trim();
+      const email = $('su_email').value.trim();
+      const pass = $('su_pass').value;
+      const role = $('su_role').value;
+
+      if (!name || !email || pass.length < 6) return showAlert('Please fill name, valid email and password (>=6 chars).');
+
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+
+        // Create user doc automatically (collection: users)
+        await setDoc(doc(db, 'users', cred.user.uid), {
+          name,
+          email,
+          role,
+          profileCompleted: false,
+          walletBalance: 0,
+          joinedAt: serverTimestamp()
+        });
+
+        // redirect to dashboard (profile completion can be done there)
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        showAlert(err.message);
+      }
+    });
+
+    // ---------- Quick demo sign (creates test account, only for dev) ----------
+    $('btnDemo').addEventListener('click', async () => {
+      const demoEmail = `demo${Date.now()%10000}@feelancer.test`;
+      const demoPass = 'demopass123';
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, demoEmail, demoPass);
+        await setDoc(doc(db,'users',cred.user.uid), { name:'Demo User', email:demoEmail, role:'freelancer', profileCompleted:false, walletBalance:0, joinedAt:serverTimestamp() });
+        window.location.href = 'dashboard.html';
+      } catch (e) { showAlert(e.message); }
+    });
+
+    // ---------- Login flow ----------
+    $('btnLogin').addEventListener('click', async () => {
+      const email = $('li_email').value.trim();
+      const pass = $('li_pass').value;
+      if (!email || !pass) return showAlert('Enter email & password');
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        // successful — redirect
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        showAlert(err.message);
+      }
+    });
+
+    // ---------- Forgot password ----------
+    $('btnForgot').addEventListener('click', () => {
+      const email = $('li_email').value.trim();
+      if (!email) return showAlert('Enter your email to reset password.');
+      sendPasswordResetEmail(auth, email).then(() => {
+        showAlert('Password reset email sent. Check your inbox.');
+      }).catch(e => showAlert(e.message));
+    });
+
+    // ---------- Keep user logged in (optional redirect if already authed) ----------
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // ensure user doc exists (auto-create safe default if missing)
+        const udoc = await getDoc(doc(db,'users',user.uid));
+        if (!udoc.exists()) {
+          await setDoc(doc(db,'users',user.uid), { name:user.displayName||'', email:user.email, role:'client', profileCompleted:false, walletBalance:0, joinedAt: serverTimestamp() });
+        }
+        // redirect handled in flows; staying here is fine
+      }
+    });
+
+    // ---------- Note to developer (in-code commands) ----------
+    // Collections created automatically: users (on signup)
+    // Recommended Firestore rules (paste in Firebase console):
+    // rules_version = '2'; service cloud.firestore { match /databases/{database}/documents { match /users/{uid} { allow read: if request.auth != null; allow write: if request.auth.uid == uid; } match /{document=**} { allow read: if request.auth != null; allow write: if request.auth != null; } } }
+  </script>
+</body>
+</html>
