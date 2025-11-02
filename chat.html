@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chat — Feelancer10</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #0077FF, #00E0FF);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(10px);
+    padding: 15px 25px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h2 { margin: 0; }
+  #logout { cursor: pointer; color: #00E0FF; }
+  .chat-box {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .msg {
+    max-width: 75%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    word-wrap: break-word;
+  }
+  .sent { background: rgba(255,255,255,0.9); color: #0077FF; align-self: flex-end; }
+  .received { background: rgba(255,255,255,0.2); color: white; align-self: flex-start; }
+  .input-bar {
+    display: flex;
+    background: rgba(0,0,0,0.3);
+    padding: 15px;
+    backdrop-filter: blur(8px);
+  }
+  .input-bar input {
+    flex: 1;
+    border: none;
+    border-radius: 20px;
+    padding: 10px 15px;
+    outline: none;
+    font-size: 16px;
+  }
+  .input-bar button {
+    margin-left: 10px;
+    border: none;
+    background: white;
+    color: #0077FF;
+    border-radius: 20px;
+    padding: 10px 20px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+  .input-bar button:hover { background: #00E0FF; color: white; }
+</style>
+</head>
+<body>
+
+<header>
+  <h2>Feelancer10 Chat</h2>
+  <div id="logout">Logout</div>
+</header>
+
+<div id="chatBox" class="chat-box"></div>
+
+<div class="input-bar">
+  <input id="msgInput" placeholder="Type your message...">
+  <button id="sendBtn">Send</button>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDTAI93GPDjSYaUTNuRDRD_EaI5KgAKga4",
+    authDomain: "feelancer10.firebaseapp.com",
+    projectId: "feelancer10",
+    storageBucket: "feelancer10.firebasestorage.app",
+    messagingSenderId: "493511381411",
+    appId: "1:493511381411:web:c095b15d707a758ba08a16"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const chatBox = document.getElementById('chatBox');
+  const msgInput = document.getElementById('msgInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const logout = document.getElementById('logout');
+
+  logout.onclick = () => signOut(auth).then(() => location.href = 'auth.html');
+
+  // get client id from url param
+  const urlParams = new URLSearchParams(window.location.search);
+  const chatPartner = urlParams.get('client');
+
+  let currentUser = null;
+
+  onAuthStateChanged(auth, user => {
+    if (!user) return location.href = 'auth.html';
+    currentUser = user;
+    loadMessages();
+  });
+
+  // 🧠 Block sensitive data (UPI, phone, insta, @ etc.)
+  function isBlockedMessage(text) {
+    const blocked = /(upi|@|insta|instagram|phone|call|whatsapp|\d{10,})/i;
+    return blocked.test(text);
+  }
+
+  // Load chat messages in real time
+  function loadMessages() {
+    const roomId = [currentUser.uid, chatPartner].sort().join('_');
+    const q = query(collection(db, 'messages', roomId, 'chats'), orderBy('createdAt'));
+    onSnapshot(q, snapshot => {
+      chatBox.innerHTML = '';
+      snapshot.forEach(doc => {
+        const msg = doc.data();
+        const div = document.createElement('div');
+        div.classList.add('msg', msg.sender === currentUser.uid ? 'sent' : 'received');
+        div.textContent = msg.text;
+        chatBox.appendChild(div);
+      });
+      chatBox.scrollTop = chatBox.scrollHeight;
+    });
+  }
+
+  sendBtn.onclick = async () => {
+    const text = msgInput.value.trim();
+    if (!text) return;
+    if (isBlockedMessage(text)) {
+      alert("❌ Personal or payment details are not allowed in chat.");
+      msgInput.value = '';
+      return;
+    }
+    const roomId = [currentUser.uid, chatPartner].sort().join('_');
+    await addDoc(collection(db, 'messages', roomId, 'chats'), {
+      sender: currentUser.uid,
+      receiver: chatPartner,
+      text,
+      createdAt: serverTimestamp()
+    });
+    msgInput.value = '';
+  };
+</script>
+
+</body>
+</html>
