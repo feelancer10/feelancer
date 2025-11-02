@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Support — Feelancer10</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #0077FF, #00E0FF);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    header {
+      width: 100%;
+      background: rgba(0,0,0,0.3);
+      backdrop-filter: blur(10px);
+      padding: 15px 25px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h2 { margin: 0; }
+    #logout { cursor: pointer; color: #00E0FF; }
+
+    .container {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(12px);
+      border-radius: 20px;
+      margin-top: 40px;
+      padding: 30px;
+      width: 90%;
+      max-width: 600px;
+      text-align: center;
+      animation: fadeIn 1s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    input, textarea, button {
+      width: 100%;
+      padding: 12px 15px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+    textarea { resize: none; height: 120px; }
+    button {
+      background: white;
+      color: #0077FF;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover { background: #00E0FF; color: white; }
+    .success {
+      background: rgba(0,255,0,0.2);
+      padding: 10px;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+    .tickets {
+      margin-top: 25px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 15px;
+      padding: 15px;
+    }
+    .ticket {
+      border-bottom: 1px solid rgba(255,255,255,0.2);
+      padding: 8px;
+      text-align: left;
+    }
+    label { display: block; text-align: left; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h2>Feelancer10 Support</h2>
+  <div id="logout">Logout</div>
+</header>
+
+<div class="container">
+  <h3>Need Help? Submit a Ticket 📩</h3>
+
+  <label>Issue Type</label>
+  <select id="issueType" style="width:100%;padding:12px;border-radius:10px;border:none;">
+    <option>Payment Issue</option>
+    <option>Withdraw Delay</option>
+    <option>Job Problem</option>
+    <option>Chat or Account Issue</option>
+    <option>Other</option>
+  </select>
+
+  <label>Describe Your Issue</label>
+  <textarea id="message" placeholder="Explain your issue clearly..."></textarea>
+
+  <label>Upload Screenshot / Proof (optional)</label>
+  <input type="file" id="proof" accept="image/*" />
+
+  <button id="submitBtn">Submit Ticket</button>
+
+  <div id="status"></div>
+
+  <div class="tickets">
+    <h4>Your Previous Tickets</h4>
+    <div id="ticketList"></div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, addDoc, collection, getDocs, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDTAI93GPDjSYaUTNuRDRD_EaI5KgAKga4",
+    authDomain: "feelancer10.firebaseapp.com",
+    projectId: "feelancer10",
+    storageBucket: "feelancer10.firebasestorage.app",
+    messagingSenderId: "493511381411",
+    appId: "1:493511381411:web:c095b15d707a758ba08a16"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
+
+  const issueType = document.getElementById("issueType");
+  const message = document.getElementById("message");
+  const proof = document.getElementById("proof");
+  const submitBtn = document.getElementById("submitBtn");
+  const statusDiv = document.getElementById("status");
+  const ticketList = document.getElementById("ticketList");
+  const logout = document.getElementById("logout");
+
+  logout.onclick = () => signOut(auth).then(() => location.href = 'auth.html');
+
+  let userId;
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) return location.href = "auth.html";
+    userId = user.uid;
+    loadTickets();
+  });
+
+  async function loadTickets() {
+    const q = query(collection(db, "support_tickets"), orderBy("time", "desc"));
+    const snap = await getDocs(q);
+    ticketList.innerHTML = "";
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.userId === userId) {
+        const div = document.createElement("div");
+        div.className = "ticket";
+        div.innerHTML = `<b>${data.issueType}</b><br>${data.message}<br>Status: <span style="color:${data.status === 'Pending' ? 'orange':'lightgreen'}">${data.status}</span>`;
+        ticketList.appendChild(div);
+      }
+    });
+  }
+
+  submitBtn.onclick = async () => {
+    const issue = issueType.value.trim();
+    const msg = message.value.trim();
+    if (!msg) return alert("Please describe your issue.");
+
+    statusDiv.innerHTML = "<div class='success'>Submitting...</div>";
+
+    let proofUrl = "";
+    if (proof.files.length > 0) {
+      const fileRef = ref(storage, `proofs/${Date.now()}_${proof.files[0].name}`);
+      await uploadBytes(fileRef, proof.files[0]);
+      proofUrl = await getDownloadURL(fileRef);
+    }
+
+    await addDoc(collection(db, "support_tickets"), {
+      userId,
+      issueType: issue,
+      message: msg,
+      proof: proofUrl,
+      status: "Pending",
+      time: serverTimestamp()
+    });
+
+    statusDiv.innerHTML = "<div class='success'>✅ Ticket submitted successfully!</div>";
+    message.value = "";
+    proof.value = "";
+    loadTickets();
+  };
+</script>
+
+</body>
+</html>
