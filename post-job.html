@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Post Job — Feelancer10</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    form {display:grid; gap:12px; max-width:500px; margin:auto;}
+    input,textarea,select {padding:10px;border-radius:8px;border:1px solid #ccc;font-family:Poppins;}
+    button {padding:10px 20px;border:none;background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;}
+    .error{color:red;font-size:14px;}
+  </style>
+</head>
+<body>
+  <header class="topbar container">
+    <a class="logo" href="index.html">Feelancer10</a>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="find-work.html">Find Work</a>
+      <a href="chat.html">Messages</a>
+      <a href="profile.html">Profile</a>
+      <a href="wallet.html">Wallet</a>
+      <a href="support.html">Support</a>
+      <a id="logout" href="#">Logout</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <h1>Post a New Job</h1>
+    <form id="jobForm">
+      <input type="text" id="title" placeholder="Job Title" required>
+      <textarea id="description" placeholder="Describe the work (no personal info allowed)" required></textarea>
+      <input type="number" id="budget" placeholder="Budget (₹)" required>
+      <select id="category">
+        <option value="Web Development">Web Development</option>
+        <option value="Graphic Design">Graphic Design</option>
+        <option value="Content Writing">Content Writing</option>
+        <option value="Digital Marketing">Digital Marketing</option>
+        <option value="Video Editing">Video Editing</option>
+      </select>
+      <div class="error" id="error"></div>
+      <button type="submit">Post Job</button>
+    </form>
+  </main>
+
+  <footer class="container muted center">© Feelancer10</footer>
+
+  <script type="module">
+    // Firebase setup
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+    import { getFirestore, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDTAI93GPDjSYaUTNuRDRD_EaI5KgAKga4",
+      authDomain: "feelancer10.firebaseapp.com",
+      projectId: "feelancer10",
+      storageBucket: "feelancer10.firebasestorage.app",
+      messagingSenderId: "493511381411",
+      appId: "1:493511381411:web:c095b15d707a758ba08a16"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    document.getElementById("logout").onclick = (e) => { e.preventDefault(); signOut(auth).then(()=>location.href='index.html'); };
+
+    const form = document.getElementById('jobForm');
+    const errorEl = document.getElementById('error');
+
+    // Block personal info regex
+    const forbidden = /(upi|@|instagram|facebook|snapchat|whatsapp|telegram|phone|number|mobile|call|payment|paytm|gpay|phonepe|axl|[0-9]{6,})/i;
+
+    onAuthStateChanged(auth, user => {
+      if(!user) location.href='auth.html';
+      form.addEventListener('submit', async(e)=>{
+        e.preventDefault();
+        errorEl.textContent = '';
+        const title = form.title.value.trim();
+        const description = form.description.value.trim();
+        const budget = Number(form.budget.value.trim());
+        const category = form.category.value;
+        if(forbidden.test(description)){
+          errorEl.textContent = 'Personal contact info or payment details are not allowed.';
+          return;
+        }
+        try{
+          await addDoc(collection(db,'jobs'),{
+            title, description, budget, category,
+            postedBy: user.uid,
+            status:'open',
+            createdAt: serverTimestamp()
+          });
+          alert('Job posted successfully!');
+          location.href='dashboard.html';
+        }catch(err){
+          errorEl.textContent = 'Error: '+err.message;
+        }
+      });
+    });
+  </script>
+</body>
+</html>
